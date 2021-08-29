@@ -33,7 +33,7 @@ def vocab_pieces(vocab_items):
 def main():
     vocab_items = get_vocab_items()
 
-    with sql.connect("dict.db") as sql_connection:
+    with sql.connect("./static/dict.db") as sql_connection:
         cursor = sql_connection.cursor()
         cursor.execute("create table if not exists dict(id INTEGER PRIMARY KEY, k1 TEXT, reading TEXT, tr TEXT)")
 
