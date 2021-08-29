@@ -3,36 +3,43 @@ import sqlite3 as sql
 import requests as rq
 from bs4 import BeautifulSoup as bs
 
-sql_connection = sql.connect("dict.db")
-cursor = sql_connection.cursor()
 
-cursor.execute("create table if not exists dict(id INTEGER PRIMARY KEY, k1 TEXT, reading TEXT, tr TEXT)")
-
-res = rq.get("https://tangorin.com/vocabulary/65005")
-data = bs(res.text, 'html.parser')
-
-uls = data.find('ul', class_="vocab-item-list")
-lis = uls.find_all('li', class_='vocab-item')
+TANGORIN_URI = 'https://tangorin.com/vocabulary/65005'
 
 
-
-for i, li in enumerate(lis):
-    # if i > 10:
-    #     break
-
-    li = li.text
-    if "【" not in li:
-        continue
-
-    aa = re.split(r"\W", li, maxsplit=2)
-    text = aa[2].lstrip()
-
-    print("\n\n", aa[0])
-    print(aa[1])
-    print(text)
+def get_vocab_items():
+    res = rq.get(TANGORIN_URI)
+    data = bs(res.text, 'html.parser')
+    uls = data.find('ul', class_="vocab-item-list")
+    return uls.find_all('li', class_='vocab-item')
 
 
-    cursor.execute("insert into dict(k1, reading, tr) values(?, ?, ?)", (aa[0], aa[1], text))
+def vocab_pieces(vocab_items):
+    for vocab_item in vocab_items:
+        vocab_item = vocab_item.text
+        if "【" in vocab_item:
+            kanji, reading, translation = re.split(r"\W", vocab_item, maxsplit=2)
+        elif "《" in vocab_item:
+            reading, kanji, translation = re.split(r"\W", vocab_item, maxsplit=2)
+        else:
+            kanji, translation = re.split(r"\W", vocab_item, maxsplit=1)
+            reading = ''
+
+        translation = translation.lstrip()
+
+        yield kanji, reading, translation
 
 
-sql_connection.commit()
+def main():
+    vocab_items = get_vocab_items()
+
+    with sql.connect("dict.db") as sql_connection:
+        cursor = sql_connection.cursor()
+        cursor.execute("create table if not exists dict(id INTEGER PRIMARY KEY, k1 TEXT, reading TEXT, tr TEXT)")
+
+        for vocab_piece in vocab_pieces(vocab_items):
+            cursor.execute("insert into dict(k1, reading, tr) values(?, ?, ?)", vocab_piece)
+
+
+if __name__ == '__main__':
+    main()
